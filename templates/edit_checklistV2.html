@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}{% if action == 'Create' %}Create{% else %}Edit{% endif %} checklist{% endblock %}
+{% block script %}
+<script src="http://checklistsforglass.com/static/js/show_checklist.js"></script>
+<script>
+var checklists = [{% for cl in checklists %}{'id': {{ cl.id }}, 'name': "{{ cl.name }}"}{% if forloop.last %}{% else %}, {% endif %}{% endfor %}];
+var device_type = 'web';
+Array.prototype.last = function() {
+    return this[this.length-1];
+}
+var editor_status = '';
+var editor_status_i = 0;
+{% if action == 'create' %}
+var checklist = [];
+var complex_location = [0];
+{% else %}
+var complex_location = [0];
+var checklist = {{ checklist.json|safe }};
+{% endif %}
+var previewI = 0;
+var full_checklist = [];
+var status = 'normal';
+var currentPreview = [];
+function updateDebug() {
+    $('#checklistvar').text(JSON.stringify(checklist));
+    $('#location').text(complex_location);
+    $('#current').text(JSON.stringify(currentPreview));
+    $('#i').text(previewI);
+    $('#status').text(status);
+    
+}
+function updatePreview() {
+    checklist = eval($('#json').text());
+    $.post('/get_full_json/', {'json': $('#json').text()}, function (data) {
+        $('#full_json').text(data);
+        console.log('full json string: '+$('#full_json').text());
+    console.log('full json: '+eval($('#full_json').text()));
+    
+    //alert(checklist);
+    $('#full_json').text($('#full_json').text().replace(/null/g, ''));
+    $('#full_json').text($('#full_json').text().replace(/,,/g, ','));
+    full_checklist = eval($('#full_json').text());
+    //checklist = checklist.filter(Boolean);
+    currentPreview = full_checklist;
+    previewI = 0;
+    var complex_location = [0];
+    if (checklist.length > 0) {
+    processItem(full_checklist[0]);
+    }
+    updateDebug();
+    });
+    
+}
+function getHtml(theList, location) {
+    var html = '<ul>';
+    html += '<li><strong>Add:</strong> <input type="button" value="Static" id="static_button" location="'+escape(location)+'" /><input type="button" value="Decision point" location="'+escape(location)+'" id="decision_point_button" /><input type="button" value="Go to" class="goto_button" location="'+escape(location)+'" /><input type="button" value="Link" class="link_button" location="'+escape(location)+'" /><input type="button" value="Open ended question" class="open_ended_question_button" location="'+escape(location)+'" /><strong>JSON location:</strong> '+location+'</li>';
+    for (var i=0; i<theList.length; i++) {
+        if (theList[i] != null) {
+            var element_location = location + '[' + i + ']';
+            html += '<li location="'+escape(element_location)+'">';
+            var item = theList[i];
+            if (item['type'] == 'decision_point') {
+                var element_location = location + '[' + i + ']';
+                html += '<p><strong>Type:</strong> Decision point <input type="button" value="Delete" class="delete_button" location="'+escape(element_location)+'" /><input type="button" value="Add answer" class="add_answer_button" location="'+escape(element_location)+'" /><strong>JSON location:</strong> '+element_location+'</p>';
+                var question_location = location + '[' + i + ']' + '["question"]';
+                html += '<p><strong>Question:</strong> <input type="text" value="'+item['question']+'" location="'+escape(question_location)+'" /></p>';
+                var acceptable_answers = Object.keys(item['acceptable_answers']);
+                for (var j=0; j<acceptable_answers.length; j++) {
+                    var question_location = location + '[' + i + ']' + '["acceptable_answers"]';
+                    var answer_location = location + '[' + i + ']' + '["acceptable_answers"]["' + acceptable_answers[j] + '"]';
+                    html += '<p><strong>Acceptable answer:</strong> <input type="text" value="'+acceptable_answers[j]+'" current="'+acceptable_answers[j]+'" location="'+escape(question_location)+'" class="acceptable_answer" /><input type="button" location="'+escape(answer_location)+'" class="delete_answer" value="Delete this answer" />';
+                    html += getHtml(item['acceptable_answers'][acceptable_answers[j]], location+'['+i+']["acceptable_answers"]["'+acceptable_answers[j]+'"]');
+                }
+            } else if (item['type'] == 'static') {
+                var element_location = location + '[' + i + ']';
+                html += '<p><strong>Type:</strong> Static <input type="button" value="Delete" class="delete_button" location="'+escape(element_location)+'" /><strong>JSON location:</strong> '+element_location+'</p>';
+                var text_location = location + '[' + i + ']' + '["text"]';
+                html += '<p><strong>Text:</strong> <input type="text" value="'+item['text']+'" default="blank static element" location="'+escape(text_location)+'"/></p>';
+            } else if (item['type'] == 'open_ended_question') {
+                var element_location = location + '[' + i + ']';
+                html += '<p><strong>Type:</strong> Open ended question <input type="button" value="Delete" class="delete_button" location="'+escape(element_location)+'" /><br/>';
+                var text_location = location + '[' + i + ']' + '["question"]';
+                html += '<p><strong>Question:</strong> <input type="text" value="'+item['question']+'" default="Write your question here." location="'+escape(text_location)+'"/></p>';
+            } else if (item['type'] == 'goto') {
+                var element_location = location + '[' + i + ']';
+                html += '<p><strong>Type:</strong> Go to <input type="button" value="Delete" class="delete_button" location="'+escape(element_location)+'" /><input type="button" class="select_goto_element" location="'+escape(element_location)+'" value="Select an element"><br/>';
+                var text_location = location + '[' + i + ']' + '["location"]';
+                html += '<strong>Location:</strong> <input type="text" value="'+unescape(item['location'])+'" default="checklist[0]" location="'+escape(text_location)+'" class="goto_element" /></p>';
+            } else if (item['type'] == 'link') {
+                var element_location = location + '[' + i + ']';
+                html += '<p><strong>Type:</strong> Link <input type="button" value="Delete" class="delete_button" location="'+escape(element_location)+'" /></p>';
+                var select_location = location + '[' + i + ']' + '["checklist_id"]';
+                var checklists_html = '<select class="link_id" location="'+escape(select_location)+'">';
+                for (var k=0;k<checklists.length;k++) {
+                    if (checklists[k]["id"] == eval(select_location)) {
+                        checklists_html += '<option value="'+checklists[k]["id"]+'" selected>'+checklists[k]["name"]+'</option>';
+                    } else {
+                        checklists_html += '<option value="'+checklists[k]["id"]+'">'+checklists[k]["name"]+'</option>';
+                    }
+                }
+                checklists_html += '</select>';
+                html += '<p><strong>Checklist:</strong> '+checklists_html+'</p>';
+            }
+            html += '</li>';
+        }
+    }
+    html += '</ul>';
+    return html
+}
+var previewAnswers = [];
+
+function visualizeChecklist() {
+    $('#checklist').html('');
+    var html = getHtml(checklist, 'checklist');
+    $('#checklist').html(html);
+}
+$(function () {
+    checklist = checklist.filter(Boolean);
+    $('#json').text(JSON.stringify(checklist)); 
+    visualizeChecklist();
+    {% if action != 'create' %}
+    updatePreview();
+    {% endif %}
+    $('#checklist').on('click', '#decision_point_button', function() {
+        var location = eval(unescape($(this).attr('location')));
+        location.push({'type': 'decision_point', 'question': 'Write your question here.', 'acceptable_answers': {'answer 1': [], 'answer 2': []}});
+        
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview();
+        visualizeChecklist();
+    });
+    $('#checklist').on('click', '.open_ended_question_button', function() {
+        var location = eval(unescape($(this).attr('location')));
+        location.push({'type': 'open_ended_question', 'question': 'Write your question here.'});
+        
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview();
+        visualizeChecklist();
+    });
+    $('#checklist').on('click', '.delete_button', function() {
+        console.log('delete '+unescape($(this).attr('location')));
+        eval('delete '+unescape($(this).attr('location')));
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview();
+        visualizeChecklist();
+    });
+    $('#checklist').on('click', '.delete_answer', function() {
+        console.log('delete '+unescape($(this).attr('location')));
+        eval('delete '+unescape($(this).attr('location')));
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview();
+        visualizeChecklist();
+    });
+    $('#checklist').on('click', '#static_button', function() {
+        console.log($(this).attr('location'));
+        console.log('static clicked');
+        var location = eval(unescape($(this).attr('location')));
+        location.push({"type": "static", "text": "blank static element"});
+        
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview();
+        visualizeChecklist();
+    });
+    $('#checklist').on('click', '.add_answer_button', function() {
+        eval(unescape($(this).attr('location'))+'["acceptable_answers"]["acceptable answer"]=[]');
+        
+        $('#json').text(JSON.stringify(checklist)); 
+        visualizeChecklist();
+        updatePreview();
+    });
+    $('#checklist').on('change', '.link_id', function(e) {
+        var optionSelected = $("option:selected", this);
+        var valueSelected = this.value;
+        eval(unescape($(this).attr('location'))+'='+valueSelected);
+        console.log(JSON.stringify(checklist));
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview(); 
+    });
+    $('#checklist').on('click', '.select_goto_element', function(e) {
+        editor_status = $(this).attr('location');
+        $(this).nextAll('.goto_element').attr('id', 'goto_element');
+        e.stopPropagation();
+    });
+    $('#checklist').on('click', 'li', function(e) {
+        console.log(unescape(editor_status) + ' :: ' + editor_status_i);
+        if (editor_status != '') {
+        
+            
+            $('#goto_element').val(unescape($(this).attr('location')));
+            console.log('eval: '+unescape($('#goto_element').attr('location'))+'="'+escape(unescape($(this).attr('location')))+'"');
+            eval(unescape($('#goto_element').attr('location'))+'="'+escape(unescape($(this).attr('location')))+'"');
+            $('#json').text(JSON.stringify(checklist)); 
+            $('#goto_element').attr('id', '');
+            updatePreview();
+            e.stopPropagation();
+            editor_status = '';
+            editor_status_i = 0;
+            
+        }
+    });
+    $('#checklist').on('click', '.goto_button', function() {
+        console.log($(this).attr('location'));
+        console.log('static clicked');
+        var location = eval(unescape($(this).attr('location')));
+        location.push({"type": "goto", "location": "checklist[0]"});
+        
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview();
+        visualizeChecklist();
+    });
+    $('#checklist').on('click', '.link_button', function() {
+        var location = eval(unescape($(this).attr('location')));
+        location.push({"type": "link", "checklist_id": 17});
+        $('#json').text(JSON.stringify(checklist));
+        visualizeChecklist();
+        updatePreview(); 
+    });
+    $('#preview_controls').on('click', '#wink', function() {
+        advance();
+    });
+    $('#preview_controls').on('click', '#double_wink', function() {
+        select();
+    });
+    $('#checklist').on('focusin', 'input:text', function() {
+        if ($(this).attr('default') == $(this).val()) {
+            $(this).val('');
+        }
+    });
+    $('#checklist').on('focusout', 'input:text', function() {
+        if ($(this).attr('class') == 'acceptable_answer') {
+            if ($(this).attr('current') != $(this).val()) {
+                console.log('acceptable_answer');
+                console.log('EVAL: '+unescape($(this).attr('location'))+'["'+$(this).val()+'"]='+unescape($(this).attr('location'))+'["'+$(this).attr('current')+'"]');
+                eval(unescape($(this).attr('location'))+'["'+$(this).val()+'"]='+unescape($(this).attr('location'))+'["'+$(this).attr('current')+'"]');
+                eval('delete '+unescape($(this).attr('location'))+'["'+$(this).attr('current')+'"]');
+                console.log(JSON.stringify(checklist));
+                
+                $('#json').text(JSON.stringify(checklist)); 
+                updatePreview();
+                visualizeChecklist();
+            }
+        } else if ($(this).attr('class') == 'goto_element') {
+            eval(unescape($(this).attr('location'))+'="'+escape($(this).val())+'"');
+            console.log(JSON.stringify(checklist));
+            $('#json').text(JSON.stringify(checklist)); 
+            updatePreview(); 
+        } else {
+            
+            eval(unescape($(this).attr('location'))+'="'+$(this).val()+'"');
+            console.log(JSON.stringify(checklist));
+            $('#json').text(JSON.stringify(checklist)); 
+            updatePreview();
+            
+        }
+    });
+});
+</script>
+{% endblock %}
+{% block style %}
+<style>
+#checklist li { 
+    border:1px solid #000;
+    background:#DCDCDC;
+    padding:10px;
+}
+
+#checklist ul ul {
+    margin-left:20px;
+}
+#preview {
+width:560px;
+height:280px;
+color:#FFF;
+background:#000;
+font-size:40px;
+padding:40px;
+    zoom: 0.5;
+    -moz-transform: scale(0.5);
+    float:left;
+    
+}
+.clear {
+clear:both;
+}
+{% if not request.user.is_superuser %}
+#debug {
+display:none;
+}
+{% endif %}
+</style>
+{% endblock %}
+{% block body %}
+{% if not request.user.is_authenticated %}
+<p style="font-size:40px; color:red;">Warning this is just a preview of someone else's checklist. <a href="/create_checklistV2/">Click here</a> to create your own checklist.</p>
+{% endif %}
+<h2>{% if action == 'create' %}Create{% else %}Edit{% endif %} checklist</h2>
+<div id="preview"></div>
+<div id="preview_controls"><input type="button" id="wink" value="Wink" /></div>
+<div id="answered_questions"><strong>Answered questions</strong><br></div>
+<div class="clear"></div>
+<div class="debug">
+<strong>Developer debug:</strong><br/>
+<strong>Status:</strong> <span id="status"></span><br/>
+<strong>Checklist:</strong> <span id="checklistvar"></span><br/>
+<strong>Location:</strong> <span id="location"></span><br/>
+<strong>Current:</strong> <span id="current"></span><br/>
+<strong>I:</strong> <span id="i"></span><br/>
+<strong>Full json:</strong> <span id="full_json"></span><br/>
+</div>
+<form>
+<strong>Name:</strong> <input id="name" type="text" name="name" value="{{ checklist.name }}" style="width:400" /> {% if request.user.is_authenticated %}<input type="button" value="Save checklist" id="save" />{% endif %}
+<p><strong>JSON:</strong> <span id="json"></span></p>
+
+<div id="checklist"></div>
+</form>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{% if action == 'Create' %}Create{% else %}Edit{% endif %} checklist{% endblock %}
+{% block body %}
+<h2>{% if action == 'create' %}Create{% else %}Edit{% endif %} checklist</h2>
+<form>
+<strong>Name:</strong> <input type="text" name="name" value="{{ checklist.name }}" style="width:400" /> <input type="button" value="Save checklist" id="save" />
+<br/><strong>Mass:</strong> <textarea name="mass" style="width:700px; height:300px"></textarea>
+<ul id="elements">
+{% if action == 'create' %}
+<li><strong>Text:</strong> <input type="text" value="" name="text_0" /><br/><strong>Image:</strong> <input type="file" name="image_0" id="file"><br/><input type="button" value="Delete this checklist item" class="delete_item" /></li>
+{% endif %}
+</ul>
+<input type="button" id="addElement" value="Add item to checklist" />
+</form>
+{% endblock %}

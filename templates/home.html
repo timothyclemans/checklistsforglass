@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block script %}
+<script>
+
+
+
+function showUnregisteredDevices() {
+    $.get('/unregistered_devices/', function (data) { 
+       $('ul').html('');
+       for (var i = 0; i<data.length; i++) {
+           $('ul').append('<li><input type="button" value="'+data[i]+'" /></li>');
+       }
+       setTimeout(function() { showUnregisteredDevices(); }, 10000);
+    });
+}
+$(function() {
+    showUnregisteredDevices();
+    $('.delete_checklist').click(function() {
+        $.get("/delete_checklist/"+$(this).parent().attr('id')+"/");
+        $(this).parent().remove();
+    });
+    $('.delete_checklistV2').click(function() {
+        $.get("/delete_checklistV2/"+$(this).parent().attr('id')+"/");
+        $(this).parent().remove();
+    });
+});
+</script>
+{% endblock %}
+{% block body %}
+{% if not user %}
+<a href="{% url 'socialauth_begin' 'google-oauth2' %}">Login with Google</a>
+{% else %}
+<!--
+<div id="header">
+<a href="/logout">Logout</a>
+<h1>Checklists for Glass</h1>
+</div>
+-->
+<!--<a href="/create_checklist/">Create checklist</a>-->
+<h2>My account</h2>
+<a href="/create_checklistV2/">Create checklist</a>
+<h3>Checklists I created</h3>
+{% for checklist in checklists_user_createdV2 %}
+<li id="{{ checklist.id }}"><a href="/edit_checklistV2/{{ checklist.id }}/">{{ checklist.name }}</a> <input type="button" value="delete" class="delete_checklistV2" /></li>
+{% endfor %}
+{% for checklist in checklists_user_created %}
+<li id="{{ checklist.id }}"><a href="/edit_checklist/{{ checklist.id }}/">{{ checklist.name }}</a> <input type="button" value="delete" class="delete_checklist" /></li>
+{% endfor %}
+<h3>Checklists I'm using created by others</h3>
+<ul>
+
+</ul>
+<h3>Install app on new devices</h3>
+{% endif %}
+{% endblock %}

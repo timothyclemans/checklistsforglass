@@ -1,0 +1,211 @@
+<html>
+<head>
+<title>Checklists for Glass</title>
+<link href='https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700' rel='stylesheet' type='text/css'>
+
+<style>
+        /* recover from old-browser styling */
+ 
+.oldbl {display: block !important;}
+.oldin {display: inline !important;}
+img.pic {display: block !important;}
+.ahem, .skipper, #aboutsite, #aboutsite * {display: none !important;}
+ 
+/* NS6.x-specific fix(es) */
+ 
+*|*:-moz-list-bullet, *|*:-moz-list-number {font-size: 1em;}
+ 
+/* IE image scaling fix */
+ 
+img {-ms-interpolation-mode: bicubic;}
+ 
+/* misc */
+ 
+#present {z-index: 100000 !important;}
+ 
+/* 
+   http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+ 
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, code,
+del, dfn, img, ins, kbd, q, s, samp,
+small, strike, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed, 
+figure, figcaption, footer, header, hgroup, 
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+    vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure, 
+footer, header, hgroup, menu, nav, section {
+	display: block;
+}
+body {
+margin:0;
+font:.8em Roboto;
+font-weight:100;
+}
+#header {
+background:#DCDCDC;
+}
+#header ul {
+padding:10px 10px 0 10px;
+text-align:right;
+}
+h1 {
+border-bottom:1px solid #CCC;
+background:#DCDCDC;
+clear:both;
+padding:0 10px 10px 10px;
+font-size:2em;
+}
+#header li {
+float:right;
+margin:0 0 0 10px;
+}
+#header a:link, #header a:visited {
+color:#999;
+text-decoration:none;
+}
+#header a:hover {
+color:#FFF;
+background:blue;
+}
+input:text {
+width:700px
+}
+input:button {
+width:100px;
+}
+#elements li {
+border-bottom:1px solid #000;
+}
+#content {
+padding:10px;
+}
+h2 {
+font-size:1.5em;
+}
+h2 {
+margin-bottom:10px;
+}
+</style>
+
+<script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+<script>
+var elements = [{% for element in checklist.get_elements %}{'text': "{{ element.text }}", 'image': "{{ element.image }}"}{% if not forloop.last %}, {%endif%}{% endfor %}]
+
+
+function showUnregisteredDevices() {
+    $.get('/unregistered_devices/', function (data) { 
+       $('#elements').html('');
+       for (var i = 0; i<data.length; i++) {
+           $('#elements').append('<li><input type="button" value="'+data[i]+'" /></li>');
+       }
+       setTimeout(function() { showUnregisteredDevices(); }, 10000);
+    });
+}
+$(function() {
+    for (var i=0; i<elements.length; i++) {
+        $('#elements').append('<li><strong>Text:</strong> <input type="text" value="'+elements[i]['text']+'" name="text_'+i+'" title="text_'+i+'"  /><br/><strong>Image:</strong> <img src="'+elements[i]['image']+'" /><input type="file" name="image_'+i+'" id="file"><br/><input type="button" class="delete_item" value="Delete this checklist item" /></li>')
+    } 
+    $('#addElement').click(function() {
+        var id = parseInt($('li:last input').attr('name').split('_')[1]) + 1
+        $('#elements').append('<li><strong>Text:</strong> <input type="text" value="" name="text_'+id+'" title="text_'+id+'" /><br/><strong>Image:</strong> <input type="file" name="image_'+id+'" id="file"><br/><input type="button" class="delete_item" value="Delete this checklist item" /> </li>')
+    });
+{% if page != 'V2' %}
+    $('#save').click(function() {
+        console.log(JSON.stringify($("form").serialize()));
+        {% if action == 'create' %}
+        var fd = new FormData($('form')[0]);
+        $.ajax({
+                type: "POST", 
+                url: "/create_checklist/",  
+                //data: $("form").serialize(),  
+                data: fd,
+                processData: false,
+                contentType: false,
+                success: function( data )  
+                {
+                     document.location.href="/";
+                }
+           });
+    
+        {% else %}
+        //$.post('/edit_checklist/{{ checklist.id }}/', $("form").serialize(), function (data) {
+       
+        //});
+        var fd = new FormData($('form')[0]);
+        $.ajax({
+                type: "POST", 
+                url: "/edit_checklist/{{ checklist.id }}/",  
+                //data: $("form").serialize(),  
+                data: fd,
+                processData: false,
+                contentType: false,
+                success: function( data )  
+                {
+                     document.location.href="/";
+                }
+           });
+        {% endif %}
+    });
+{% else %}
+$('#save').click(function() {
+        console.log(JSON.stringify($("form").serialize()));
+        {% if action == 'create' %}
+        console.log('create');
+        var theData = {name: $('#name').val(), json: $('#json').text()};
+        console.log(theData);
+        $.post( "/create_checklistV2/", theData, function( data ) {
+  window.location.assign("http://checklistsforglass.com/edit_checklistV2/"+data+"/")
+});
+    
+        {% else %}
+        console.log('edit');
+        var theData = {name: $('#name').val(), json: $('#json').text()};
+        console.log(theData);
+        $.post( "/edit_checklistV2/{{ checklist.id }}/", theData, function( data ) {
+  console.log('success');
+});
+        {% endif %}
+    });
+{% endif %}
+    $(document.body).on('click', '.delete_item' ,function(){
+        $(this).parent().remove();
+    });
+});
+</script>
+{% block script %}{% endblock %}
+{% block style %}{% endblock %}
+</head>
+<body>
+<div id="header">
+<ul>
+<li>{{ request.user.get_full_name }}</li>
+<li><a href="/">My account</a></li>
+<li><a href="/create_checklistV2/">Create checklist</a></li>
+<!--<li><a href="/get_checklists/">Get checklists</a></li>-->
+</ul>
+<h1>Checklists for Glass</h1>
+</div>
+<div id="content">
+{% block body %}
+{% endblock %}
+</div>
+</body>
+</html>
