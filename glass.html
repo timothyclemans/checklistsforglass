@@ -1,0 +1,69 @@
+<!-- Complex checklists V2 -->
+<html style="width:100%; height:100%; overflow:hidden">
+<head>
+<script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+  <script src="https://rawgit.com/Glench/fuzzyset.js/master/lib/fuzzyset.js"></script>
+  <script src="http://checklistsforglass.com/static/js/show_checklist.js"></script>
+  <link href='https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700' rel='stylesheet' type='text/css'>
+<style>
+     
+    body {
+        font-family:roboto;
+        font-weight:100;
+        
+    }
+</style> 
+<!-- You can include external scripts here like so... -->
+<!--<script src="https://cdnjs.cloudflare.com/ajax/libs/zepto/1.0/zepto.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.5.2/underscore-min.js"></script>-->
+</head>
+<body style="overflow:hidden; margin:40px; background:#000;color:#FFF;font-size:40px; font-family:roboto;">
+<div id="preview"></div>
+<script> 
+var device_type = 'glass';
+function onGesture(name) {
+    WS.log('gesture: '+name);
+    if (name == 'TAP' || name == 'WINK') {
+        WS.log('tap');
+        advance();
+    } else if (name == 'TWO_TAP' || name == 'DOUBLE_BLINK') {
+        select();
+        
+    } else if (name == 'THREE_TAP') {
+        start();
+    }
+    
+} 
+function start() {
+ WS.speechRecognize('Name of checklist', function (data) {
+        WS.log($.ajax({url: "http://checklistsforglass.com/get_users_checklists/13/", async: false}).responseText);
+        checklists = {"Care Cards: Heat Stroke": 51, "Nursing note": 60, "Catheter/tube Insertion/Assessment": 2, "Room clean": 41, "Bradycardia Algorithm": 58, "Care Cards: Hypoglycemia": 42, "Health cards": 35, "Nursing: Assessment Neuro(beginner version/student)": 28, "Nursing Assessment Pulmonary(beginner/student)": 32, "Care Cards: Insect bite": 37, "Chest discomfort suggestive of ischemia protocol.": 59, "Nursing quick assessment": 61, "Nursing: Assessment Reproductive(beginner/student)": 48, "ACLS": 16, "Dr Ryan note": 34, "Care Cards: Stroke": 50, "Vitals": 13, "Catheter": 19, "Care Cards: Wound cleansing": 49, "Nursing: sub-set breath sounds location(beginner/student)": 33, "Paramedic IV Start documentation": 4, "Verify Drug order": 54, "Nursing: Assessment Wound(beginner/student)": 31, "ATLS": 17, "BLS": 15, "Care Cards: Allergic RXN": 36, "Refill": 55, "Nursing: Assessment Integumentary(beginner/student)": 30, "Nursing: Assessment Urinary(beginner/student)": 47, "STEMI Fibrinolytic Checklist": 56, "Nursing: Assessment Cardiac/Circulatory(beginner/student)": 43, "Nursing: Assessment M/S(beginner/student)": 29, "STEMI order set.": 63, "Care Cards:Seizure": 40, "Nursing: Med admin": 24, "static iv checklists": 45, "Care Cards: Bleeding": 38, "Nursing: Assessment Abdominal(beginner/student)": 46};
+        //var data = 'wound';
+        //WS.log('checklists: '+JSON.stringify(checklists));
+        var fuzzy_names = FuzzySet(Object.keys(checklists));
+        
+        var fuzzy_match = fuzzy_names.get(data)[0][1];
+        var checklist_id = checklists[fuzzy_match];
+        WS.log('id: '+checklist_id);
+        //var checklist_index = names.indexOf(fuzzy_match);
+        //var checklist = checklists[checklist_index];
+        checklist = eval($.ajax({url: 'http://checklistsforglass.com/get_full_checklist/'+checklist_id+'/', async: false}).responseText);
+        currentPreview = checklist;
+        //console.log('checklist '+checklist);
+        processItem(checklist[0]);
+    });
+}
+function server() {
+    WS.log('connected');
+}
+function main() {
+    if (WS.scriptVersion(1)) return;
+    //WS.serverConnect('{{WSUrl}}', server);
+    start();
+    WS.gestureCallback('onGesture', function(name) {onGesture(name) });
+    WS.gestureCallback('onEyeGesture', function(name) {onGesture(name) });
+}
+window.onload = main;
+</script>
+</body>
+</html>
