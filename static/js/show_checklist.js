@@ -4,8 +4,29 @@ var full_checklist = [];
 var status = 'normal';
 var currentPreview = [];
 var complex_location = [0];
+var answers = [];
+//var user_id;
+//var checklist_id;
 Array.prototype.last = function() {
     return this[this.length-1];
+}
+
+function dateTime() {
+    var today = new Date();
+    var dd = today.getDate();
+    var mm = today.getMonth()+1; //January is 0!
+    var yyyy = today.getFullYear();
+
+    if(dd<10) {
+        dd='0'+dd
+    } 
+
+    if(mm<10) {
+        mm='0'+mm
+    } 
+
+    today = mm+'/'+dd+'/'+yyyy+' '+today.getHours()+':'+today.getMinutes()+':'+today.getSeconds();
+    return today;
 }
 
 function updateDebug() {
@@ -13,6 +34,8 @@ function updateDebug() {
 }
 
 function processItem(item) {
+    $('#preview').css('background', '#000');
+    //WS.say('shutting down'); WS.shutdown();
     
     status = 'normal';
     $('#preview_controls').html('<input type="button" id="wink" value="Wink/Tap to go the next step" />');
@@ -78,7 +101,12 @@ function processItem(item) {
         //console.log('static text: '+JSON.stringify('
         //console.log('static do: '+currentPreview[previewI]["text"]);
         if (device_type == 'glass') {
-            WS.speechRecognize(item['question'], function (data) {advance()});
+            WS.speechRecognize(item['question'], function (data) {
+            item['answer'] = data;
+            item['datetime'] = dateTime();
+            answers.push(item);
+            advance();
+            });
         } else {
             $('#preview').text('On Glass this is the open ended question: '+item["question"]);
         }
@@ -88,7 +116,33 @@ function processItem(item) {
         //previewI += 1;
         //advance();
         
+    } else if (item['type'] == 'take_photo') {
+        console.log('take photo');
+        //console.log('static text: '+JSON.stringify('
+        //console.log('static do: '+currentPreview[previewI]["text"]);
+        if (device_type == 'glass') {
+            $('#preview').text('Taking photo');
+            WS.cameraOn(.15, 180, 320, function (x) {
+                console.log('processing photo');
+                item['photo'] = x;
+                item['datetime'] = dateTime();
+                answers.push(item);
+                console.log(answers);
+                WS.cameraOff();
+                advance();
+            });
+            
+        } else {
+            $('#preview').text('On Glass a photo will be taken at this time');
+        }
+        //$('#text').text(currentPreview[previewI]['text']);
+        //WS.say(current[previewI]['text']);
+        location[location.length-1] += 1;
+        //previewI += 1;
+        //advance();
+        
     } else if (item['type'] == 'static') {
+        $('#preview').css('background', '#000 url("http://checklistsforglass.com/media/images/'+item['image']+'")');
         //console.log('static text: '+JSON.stringify('
         //console.log('static do: '+currentPreview[previewI]["text"]);
         $('#preview').text(item['text']);
@@ -97,7 +151,8 @@ function processItem(item) {
         //WS.say(current[previewI]['text']);
         location[location.length-1] += 1;
         //previewI += 1;
-        
+        item['datetime'] = dateTime();
+        answers.push(item);
     }
 }
 function advance() {
@@ -189,9 +244,18 @@ function advance() {
                 //processItem(currentPreview[previewI]);
             } else {
                 $('#preview').text('end of checklist');
-                //if (device_type == 'glass') {
-                //    setTimeout(function() {  WS.shutdown(); }, 2000);
-                //}
+                if (device_type == 'glass') {
+                    if (user_id !== undefined) {
+                        $.post('http://checklistsforglass.com/save_data/', {'data': JSON.stringify(answers), 'user_id': user_id, 'checklist_id': checklist_id}, function (response) {
+                          WS.shutdown();
+                        });
+                    } else {
+                        $.post('http://checklistsforglass.com/save_data/', {'data': JSON.stringify(answers)}, function (response) {
+                          WS.shutdown();
+                        });
+                    }
+                    //setTimeout(function() {  WS.shutdown(); }, 2000);
+                }
             }
         }
         
@@ -203,6 +267,11 @@ function advance() {
 function select() {
     status = 'normal';
     updateDebug();
+    item = currentPreview[previewI];
+    item['datetime'] = dateTime();
+    item['answer'] = $('#answer').text();
+    
+    answers.push(item);
     $('#answered_questions').append('<strong>'+currentPreview[previewI]['question']+'</strong> '+$('#answer').text()+'<br/>');
     //console.log(JSON.stringify(currentPreview));
     if (currentPreview[previewI]['acceptable_answers'][$('#answer').text()].length > 0) {

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block script %}
+{% endblock %}
+{% block body %}
+<h2>Audit Trails</h2>
+<table>
+<tr><th>Date time</th><th>Checklist</th></tr>
+{% for item in audit_trails %}
+<tr><td>{{ item.datetime }}</td><td><a href="/audit_trail/{{ item.data.id }}/">{{ item.checklist.name }}</a></td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

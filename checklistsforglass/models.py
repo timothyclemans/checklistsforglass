@@ -56,4 +56,21 @@ class UnregisteredDevice(models.Model):
 
     def __unicode__(self):
         return self.serial_number
+        
+class Data(models.Model):
+    data = models.TextField()
+    
+    def __unicode__(self):
+        return self.data
+        
+class AuditTrail(models.Model):
+    data = models.ForeignKey(Data)
+    user = models.ForeignKey(User)
+    checklist = models.ForeignKey(ChecklistV2)
+    datetime = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-datetime']
+        
+    def __unicode__(self):
+        return '%s %s' % (self.user.username, self.checklist.name)

@@ -1,8 +1,10 @@
 from django.shortcuts import render
 from django.shortcuts import render_to_response
 from django.db.models.loading import get_model
-from django.http import HttpResponse
-from models import Checklist, ChecklistV2, ChecklistElement, Device, UnregisteredDevice 
+from django.http import HttpResponse, HttpResponseRedirect
+from models import Checklist, ChecklistV2, ChecklistElement, Device, UnregisteredDevice, Data, AuditTrail
+from django.contrib.auth.models import User
+
 import json
 from django.template import RequestContext
 import traceback
@@ -88,10 +90,24 @@ def get_full_checklist(request, checklist_id):
         checklist = ChecklistV2.objects.get(id=int(m.group('id')))
         the_json = the_json.replace(match, checklist.json[1:-1])
     the_json = the_json.replace("null", "")
-    the_json = the_json.replace(",,", ",")
+    
     the_json = the_json.replace("[,", "[")
     the_json = the_json.replace(",]", "]")
+    the_json = the_json.replace(",,", ",")
     return HttpResponse(the_json, content_type="application/json")
+
+#@login_required
+def audit_trail(request, data_id):
+    data = json.loads(Data.objects.get(id=data_id).data)
+    
+    context = RequestContext(request, {'data': data})
+    return render_to_response('audit_trail.html', context)
+
+def audit_trails(request):
+    audit_trails = AuditTrail.objects.filter(user=request.user)
+    
+    context = RequestContext(request, {'audit_trails': audit_trails})
+    return render_to_response('audit_trails.html', context)    
 
 @login_required
 def edit_checklist(request, checklist_id):
@@ -129,18 +145,39 @@ def edit_checklist(request, checklist_id):
     context = RequestContext(request, {'checklist': Checklist.objects.get(id=checklist_id)})
     return render_to_response("edit_checklist.html", context)
 
+def save_image(request, checklist_id):
+    if request.POST:
+        print request.FILES;
+        f = request.FILES['file'];
+        file_name = request.POST['file_name']
+        file_name = file_name.lower()
+        file_name.replace(' ', '_')
+        imagef = open('/home/tim/checklistsforglass/media/images/%s_%s.jpg' % (checklist_id, file_name), 'w');
+        imagef.write(f.read())
+        imagef.close()
+        return HttpResponseRedirect('/edit_checklistV2/%s/' % (checklist_id))
+    else:
+        context = RequestContext(request, {})
+        return render_to_response('save_image.html', context)
+
 #@login_required
 def edit_checklistV2(request, checklist_id):
     if request.POST:
+        
         print request.FILES
         print request.POST
         checklist = ChecklistV2.objects.get(id=checklist_id)
+        if (request.user != checklist.author):
+            return HttpResponse('not the author')
         checklist.name = request.POST['name']
         checklist.json = request.POST['json']
         matches = {}
         checklist.save()
-    if request.user.is_authenticated():    
-        context = RequestContext(request, {'checklist': ChecklistV2.objects.get(id=checklist_id), 'page': 'V2', 'checklists': ChecklistV2.objects.filter(author=request.user),})
+    if request.user.is_authenticated(): 
+        from os import listdir
+        from os.path import isfile, join
+        images = [ f for f in listdir('/home/tim/checklistsforglass/media/images/') if isfile(join('/home/tim/checklistsforglass/media/images/',f)) if f.startswith(str(checklist_id)) ]   
+        context = RequestContext(request, {'checklist': ChecklistV2.objects.get(id=checklist_id), 'page': 'V2', 'checklists': ChecklistV2.objects.filter(author=request.user), 'images': images})
     else:
         context = RequestContext(request, {'checklist': ChecklistV2.objects.get(id=checklist_id), 'page': 'V2', 'checklists': ChecklistV2.objects.all(),})
     return render_to_response("edit_checklistV2.html", context)
@@ -236,11 +273,54 @@ def get_users_checklists(request, user_id):
     devices = json.dumps(checklists)
     return HttpResponse(devices, content_type="application/json") 
     
+def get_all_checklists(request):
+    checklists = {}
+    for checklist in ChecklistV2.objects.all():
+        checklists[checklist.name] = checklist.id
+    devices = json.dumps(checklists)
+    return HttpResponse(devices, content_type="application/json") 
+    
 def get_checklists(request, serial_number):
     device = Device.objects.get(serial_number=serial_number)
     device.checklists.all()
     devices = json.dumps([{'name': i.name, 'elements': i.get_elements()} for i in device.checklists.all()])
     return HttpResponse(devices, content_type="application/json") 
+
+def export(request):
+    checklists = ChecklistV2.objects.filter(author=request.user)
+    cl = []
+    for checklist in checklists:
+        d = {}
+        d['name'] = checklist.name
+        d['description'] = checklist.description
+        d['video_url'] = checklist.video_url
+        d['json'] = checklist.json
+        cl.append(d)
+    return HttpResponse(json.dumps(cl), content_type="application/json")
+
+def save_data(request):
+     
+    data = Data(data=request.POST['data'])
+    data.save()
+    i = 0;
+    print len(json.loads(data.data))
+    new_data = []
+    for item in json.loads(data.data):
+        print item
+        if item['type'] == 'take_photo':
+            import os
+            os.system('echo "%s" > /home/tim/checklistsforglass/media/images/temp' % (item['photo']))
+            os.system('base64 -d /home/tim/checklistsforglass/media/images/temp > /home/tim/checklistsforglass/media/images/%s_%s.png' % (data.id, i))
+            
+            item['photo'] = '%s_%s.png' % (data.id, i)
+            i += 1
+        new_data.append(item)
+    data.data = json.dumps(new_data)
+    data.save()    
+    if 'user_id' in request.POST:
+        audit_trail = AuditTrail(data=data, user=User.objects.get(id=request.POST['user_id']), checklist=ChecklistV2.objects.get(id=request.POST['checklist_id']))
+        audit_trail.save()
+    return HttpResponse('saved')
 
 from django.core.urlresolvers import reverse
 from django.contrib import messages
@@ -250,7 +330,7 @@ from social_auth.exceptions import AuthFailed
 from social_auth.views import complete
  
  
- 
+  
 class AuthComplete(View):
     def get(self, request, *args, **kwargs):
         backend = kwargs.pop('backend')

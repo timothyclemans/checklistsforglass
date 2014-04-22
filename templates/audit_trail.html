@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block script %}
+{% endblock %}
+{% block body %}
+<table>
+<tr><th>Date time</th><th>Element</th><th>User input</th></tr>
+{% for item in data %}
+<tr><td>{{ item.datetime }}</td><td>{% if item.type == 'static' %}{{ item.text }}{{ item.tag }}{% else %}{{ item.question }}{% endif %}</td>
+<td>{{ item.answer }}{% if item.photo %}<img src="/media/images/{{ item.photo }}" />{% endif %}</td></tr>
+{% endfor %}
+</table>
+{% endblock %}

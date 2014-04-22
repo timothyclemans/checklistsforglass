@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block script %}
+<script src="https://rawgit.com/davidshimjs/qrcodejs/master/qrcode.min.js"></script>
 <script>
 
 
@@ -14,6 +15,7 @@ function showUnregisteredDevices() {
     });
 }
 $(function() {
+    new QRCode(document.getElementById("qrcode"), "{{ user.id }}");
     showUnregisteredDevices();
     $('.delete_checklist').click(function() {
         $.get("/delete_checklist/"+$(this).parent().attr('id')+"/");
@@ -38,6 +40,7 @@ $(function() {
 -->
 <!--<a href="/create_checklist/">Create checklist</a>-->
 <h2>My account</h2>
+<div id="qrcode"></div>
 <a href="/create_checklistV2/">Create checklist</a>
 <h3>Checklists I created</h3>
 {% for checklist in checklists_user_createdV2 %}

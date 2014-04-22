@@ -3,6 +3,11 @@
 {% block script %}
 <script src="http://checklistsforglass.com/static/js/show_checklist.js"></script>
 <script>
+{% if images %}
+var images = [{% for cl in images %}"{{ cl }}"{% if forloop.last %}{% else %}, {% endif %}{% endfor %}];
+{% else %}
+var images;
+{% endif %}
 var checklists = [{% for cl in checklists %}{'id': {{ cl.id }}, 'name': "{{ cl.name }}"}{% if forloop.last %}{% else %}, {% endif %}{% endfor %}];
 var device_type = 'web';
 Array.prototype.last = function() {
@@ -53,7 +58,7 @@ function updatePreview() {
 }
 function getHtml(theList, location) {
     var html = '<ul>';
-    html += '<li><strong>Add:</strong> <input type="button" value="Static" id="static_button" location="'+escape(location)+'" /><input type="button" value="Decision point" location="'+escape(location)+'" id="decision_point_button" /><input type="button" value="Go to" class="goto_button" location="'+escape(location)+'" /><input type="button" value="Link" class="link_button" location="'+escape(location)+'" /><input type="button" value="Open ended question" class="open_ended_question_button" location="'+escape(location)+'" /><strong>JSON location:</strong> '+location+'</li>';
+    html += '<li><strong>Add:</strong> <input type="button" value="Static" id="static_button" location="'+escape(location)+'" /><input type="button" value="Decision point" location="'+escape(location)+'" id="decision_point_button" /><input type="button" value="Decision point (yes/no/na)" location="'+escape(location)+'" id="decision_point_yes_no_na_button" /><input type="button" value="Decision point (yes/no(give reason)/na)" location="'+escape(location)+'" id="decision_point_yes_no_give_reason_na_button" /><input type="button" value="Go to" class="goto_button" location="'+escape(location)+'" /><input type="button" value="Link" class="link_button" location="'+escape(location)+'" /><input type="button" value="Open ended question" class="open_ended_question_button" location="'+escape(location)+'" /><input type="button" value="Take photo" class="take_photo_button" location="'+escape(location)+'" /><strong>JSON location:</strong> '+location+'</li>';
     for (var i=0; i<theList.length; i++) {
         if (theList[i] != null) {
             var element_location = location + '[' + i + ']';
@@ -75,12 +80,30 @@ function getHtml(theList, location) {
                 var element_location = location + '[' + i + ']';
                 html += '<p><strong>Type:</strong> Static <input type="button" value="Delete" class="delete_button" location="'+escape(element_location)+'" /><strong>JSON location:</strong> '+element_location+'</p>';
                 var text_location = location + '[' + i + ']' + '["text"]';
-                html += '<p><strong>Text:</strong> <input type="text" value="'+item['text']+'" default="blank static element" location="'+escape(text_location)+'"/></p>';
+                
+                var selectHtml = ' <strong>Image:</strong> <select location="'+escape(location + '[' + i + ']["image"]')+'" class="image">';
+                selectHtml += '<option>No image</option>';
+                if (images !== undefined) {
+                    for (var k=0;k<images.length;k++) {
+                        if (item['image'] == images[k]) {
+                            selectHtml += '<option selected>'+images[k]+'</option>';
+                        } else {
+                            selectHtml += '<option>'+images[k]+'</option>';
+                        }
+                    }
+                }
+                selectHtml += '</select> <input type="button" class="upload_image" value="Upload image" />';
+                
+                html += '<p><strong>Text:</strong> <input type="text" value="'+item['text']+'" default="blank static element" location="'+escape(text_location)+'"/>'+selectHtml+'</p>';
             } else if (item['type'] == 'open_ended_question') {
                 var element_location = location + '[' + i + ']';
                 html += '<p><strong>Type:</strong> Open ended question <input type="button" value="Delete" class="delete_button" location="'+escape(element_location)+'" /><br/>';
                 var text_location = location + '[' + i + ']' + '["question"]';
                 html += '<p><strong>Question:</strong> <input type="text" value="'+item['question']+'" default="Write your question here." location="'+escape(text_location)+'"/></p>';
+            } else if (item['type'] == 'take_photo') {
+                var element_location = location + '[' + i + ']';
+                html += '<p><strong>Type:</strong> Take photo <input type="button" value="Delete" class="delete_button" location="'+escape(element_location)+'" /><br/>';
+                html += '<p><strong>Tag:</strong> <input type="text" class="photo_tag" value="'+item['tag']+'" default="Write your tag." location="'+escape(location + '[' + i + ']["tag"]')+'"/></p>';
             } else if (item['type'] == 'goto') {
                 var element_location = location + '[' + i + ']';
                 html += '<p><strong>Type:</strong> Go to <input type="button" value="Delete" class="delete_button" location="'+escape(element_location)+'" /><input type="button" class="select_goto_element" location="'+escape(element_location)+'" value="Select an element"><br/>';
@@ -129,9 +152,33 @@ $(function () {
         updatePreview();
         visualizeChecklist();
     });
+    $('#checklist').on('click', '#decision_point_yes_no_na_button', function() {
+        var location = eval(unescape($(this).attr('location')));
+        location.push({'type': 'decision_point', 'question': 'Write your question here.', 'acceptable_answers': {'yes': [], 'no': [], 'na': []}});
+        
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview();
+        visualizeChecklist();
+    });
+    $('#checklist').on('click', '#decision_point_yes_no_give_reason_na_button', function() {
+        var location = eval(unescape($(this).attr('location')));
+        location.push({'type': 'decision_point', 'question': 'Write your question here.', 'acceptable_answers': {'yes': [], 'no': [{'type': 'open_ended_question', 'question': 'reason?'}], 'na': []}});
+        
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview();
+        visualizeChecklist();
+    });
     $('#checklist').on('click', '.open_ended_question_button', function() {
         var location = eval(unescape($(this).attr('location')));
         location.push({'type': 'open_ended_question', 'question': 'Write your question here.'});
+        
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview();
+        visualizeChecklist();
+    });
+    $('#checklist').on('click', '.take_photo_button', function() {
+        var location = eval(unescape($(this).attr('location')));
+        location.push({'type': 'take_photo', 'tag': 'Write your tag.'});
         
         $('#json').text(JSON.stringify(checklist)); 
         updatePreview();
@@ -176,6 +223,14 @@ $(function () {
         $('#json').text(JSON.stringify(checklist)); 
         updatePreview(); 
     });
+    $('#checklist').on('change', '.image', function(e) {
+        var optionSelected = $("option:selected", this);
+        var valueSelected = this.value;
+        eval(unescape($(this).attr('location'))+'="'+valueSelected+'"');
+        console.log(JSON.stringify(checklist));
+        $('#json').text(JSON.stringify(checklist)); 
+        updatePreview(); 
+    });
     $('#checklist').on('click', '.select_goto_element', function(e) {
         editor_status = $(this).attr('location');
         $(this).nextAll('.goto_element').attr('id', 'goto_element');
@@ -197,6 +252,14 @@ $(function () {
             editor_status_i = 0;
             
         }
+    });
+    $('#checklist').on('click', '.upload_image', function() {
+        var theData = {name: $('#name').val(), json: $('#json').text()};
+        console.log(theData);
+        $.post( "/edit_checklistV2/{{ checklist.id }}/", theData, function( data ) {
+          console.log('success');
+        });
+        window.location.assign("http://checklistsforglass.com/edit_checklistV2/{{ checklist.id }}/save_image/");
     });
     $('#checklist').on('click', '.goto_button', function() {
         console.log($(this).attr('location'));
@@ -240,6 +303,11 @@ $(function () {
                 visualizeChecklist();
             }
         } else if ($(this).attr('class') == 'goto_element') {
+            eval(unescape($(this).attr('location'))+'="'+escape($(this).val())+'"');
+            console.log(JSON.stringify(checklist));
+            $('#json').text(JSON.stringify(checklist)); 
+            updatePreview(); 
+        } else if ($(this).attr('class') == 'photo_tag') {
             eval(unescape($(this).attr('location'))+'="'+escape($(this).val())+'"');
             console.log(JSON.stringify(checklist));
             $('#json').text(JSON.stringify(checklist)); 
